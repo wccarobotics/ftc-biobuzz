@@ -72,8 +72,8 @@ public class BioBuzzStarterbotTeleop extends OpMode {
      * in the launch() function to only run the windmill servo when the motor is spinning fast
      * enough to make a successful throw.
      */
-    public final int LAUNCHER_TARGET_VELOCITY = 1250;
-    public final int LAUNCHER_MIN_VELOCITY = 1200;
+    public int LAUNCHER_TARGET_VELOCITY = 1250;
+    public int LAUNCHER_MIN_VELOCITY = 1200;
 
     /*
      * These two variables store the power we need to apply to the motors. In other cases, we may
@@ -198,6 +198,22 @@ public class BioBuzzStarterbotTeleop extends OpMode {
          * create erratic behavior.
          */
         intakePower = gamepad1.right_trigger - gamepad1.left_trigger;
+
+        if (gamepad1.dpadUpWasPressed()){
+            LAUNCHER_TARGET_VELOCITY +=100;
+        }
+        else if (gamepad1.dpadDownWasPressed()){
+            LAUNCHER_TARGET_VELOCITY -=100;
+        }
+        else if (gamepad1.dpadRightWasPressed()){
+            LAUNCHER_TARGET_VELOCITY +=10;
+        }
+        else if (gamepad1.dpadLeftWasPressed()){
+            LAUNCHER_TARGET_VELOCITY -=10;
+        }
+        LAUNCHER_MIN_VELOCITY = LAUNCHER_TARGET_VELOCITY - 50;
+
+        telemetry.addData("Launcher target", LAUNCHER_TARGET_VELOCITY);
 
         /*
          * The launch() function handles setting motor velocity, and running the windmill servo
