@@ -188,6 +188,13 @@ public class StarterBotChassisTeleop extends OpMode {
         leftPower = forward + rotate;
         rightPower = forward - rotate;
 
+        double max = Math.max(Math.abs(leftPower), Math.abs(rightPower));
+        if (max > 1)
+        {
+            leftPower = leftPower / max;
+            rightPower = rightPower / max;
+        }
+
         /*
          * Send calculated power to wheels
          */
