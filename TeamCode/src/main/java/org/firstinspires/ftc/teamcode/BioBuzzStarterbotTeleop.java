@@ -72,8 +72,8 @@ public class BioBuzzStarterbotTeleop extends OpMode {
      * in the launch() function to only run the windmill servo when the motor is spinning fast
      * enough to make a successful throw.
      */
-    public int LAUNCHER_TARGET_VELOCITY = 1250;
-    public int LAUNCHER_MIN_VELOCITY = 1200;
+    public int LAUNCHER_TARGET_VELOCITY = 1400;
+    public int LAUNCHER_MIN_VELOCITY = 1350;
 
     /*
      * These two variables store the power we need to apply to the motors. In other cases, we may
@@ -201,17 +201,29 @@ public class BioBuzzStarterbotTeleop extends OpMode {
 
         if (gamepad1.dpadUpWasPressed()){
             LAUNCHER_TARGET_VELOCITY +=100;
+            LAUNCHER_MIN_VELOCITY = LAUNCHER_TARGET_VELOCITY - 50;
         }
         else if (gamepad1.dpadDownWasPressed()){
             LAUNCHER_TARGET_VELOCITY -=100;
+            LAUNCHER_MIN_VELOCITY = LAUNCHER_TARGET_VELOCITY - 50;
         }
         else if (gamepad1.dpadRightWasPressed()){
             LAUNCHER_TARGET_VELOCITY +=10;
+            LAUNCHER_MIN_VELOCITY = LAUNCHER_TARGET_VELOCITY - 50;
         }
         else if (gamepad1.dpadLeftWasPressed()){
             LAUNCHER_TARGET_VELOCITY -=10;
+            LAUNCHER_MIN_VELOCITY = LAUNCHER_TARGET_VELOCITY - 50;
         }
-        LAUNCHER_MIN_VELOCITY = LAUNCHER_TARGET_VELOCITY - 50;
+
+        if (gamepad1.aWasPressed()) {
+            LAUNCHER_TARGET_VELOCITY = 5000;
+            LAUNCHER_MIN_VELOCITY = 2500;
+        }
+        else if (gamepad1.bWasPressed()){
+            LAUNCHER_TARGET_VELOCITY = 1400;
+            LAUNCHER_MIN_VELOCITY = 1350;
+        }
 
         telemetry.addData("Launcher target", LAUNCHER_TARGET_VELOCITY);
 
@@ -236,6 +248,7 @@ public class BioBuzzStarterbotTeleop extends OpMode {
          * Show motor powers on the Driver Station via telemetry.
          */
         telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftPower, rightPower);
+        telemetry.addData("Flywheel",launcher.getVelocity());
         telemetry.addLine();
 
     }
