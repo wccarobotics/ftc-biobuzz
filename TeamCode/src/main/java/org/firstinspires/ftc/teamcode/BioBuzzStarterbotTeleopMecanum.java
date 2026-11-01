@@ -24,13 +24,17 @@ package org.firstinspires.ftc.teamcode;
 
 import static com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE;
 
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 /*
  * This file includes a teleop (driver-controlled) file for the goBILDA® StarterBot with Mecanum
@@ -61,6 +65,7 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
     private CRServo leftIntakeServo = null;
     private CRServo rightIntakeServo = null;
     //private CRServo windmillServo = null;
+    private IMU imu = null;
 
 
     /*
@@ -89,6 +94,27 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
 
     // Create a variable to set to the intake.
     double intakePower;
+
+    /*
+     * Field-relative drive uses the Control Hub's built-in IMU to know which way the robot is
+     * facing, so that pushing the stick forward always drives away from the driver no matter
+     * which way the robot is pointed. To read the heading correctly, the IMU needs to know how
+     * the Control Hub is mounted on the robot: which way the REV logo faces, and which way the
+     * USB ports face.
+     *
+     * Our hub is mounted on its edge, with its right side pointing up. To check these settings,
+     * INIT the OpMode and turn the robot counter-clockwise by hand: the "Heading" telemetry should
+     * go UP. If it goes down instead, change LEFT to RIGHT below. If it barely changes at all, the
+     * settings are wrong in a different way - see the SensorIMUOrthogonal sample for how to work
+     * out the two directions.
+     */
+    public final RevHubOrientationOnRobot.LogoFacingDirection LOGO_DIRECTION =
+            RevHubOrientationOnRobot.LogoFacingDirection.LEFT;
+    public final RevHubOrientationOnRobot.UsbFacingDirection USB_DIRECTION =
+            RevHubOrientationOnRobot.UsbFacingDirection.FORWARD;
+
+    // True for field-relative drive (the default), false for robot-relative drive.
+    boolean fieldRelative = true;
 
     /*
      * Code to run ONCE when the driver hits INIT
@@ -161,6 +187,12 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
         //windmillServo.setDirection(DcMotorSimple.Direction.REVERSE);
 
         /*
+         * Tell the IMU how the Control Hub is mounted, so it can work out the robot's heading.
+         */
+        imu = hardwareMap.get(IMU.class, "imu");
+        imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(LOGO_DIRECTION, USB_DIRECTION)));
+
+        /*
          * Tell the driver that initialization is complete.
          */
         telemetry.addData("Status", "Initialized");
@@ -171,6 +203,11 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
      */
     @Override
     public void init_loop() {
+        /*
+         * Show the heading before START, so we can check the IMU settings by turning the robot by hand.
+         */
+        telemetry.addData("Heading", "%.1f deg (should go UP when turned counter-clockwise)",
+                imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES));
     }
 
     /*
@@ -178,6 +215,11 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
      */
     @Override
     public void start() {
+        /*
+         * Field-relative drive is the default, so whichever way the robot is facing when we hit
+         * START becomes "forward" (away from the driver).
+         */
+        imu.resetYaw();
     }
 
     /*
@@ -185,6 +227,29 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
      */
     @Override
     public void loop() {
+        /*
+         * DPad up switches to field-relative drive. It also resets the heading, so whichever way the
+         * robot is facing when you press it becomes "forward". If the robot's idea of forward drifts
+         * during a match, point the robot away from you and press DPad up again.
+         * DPad down switches to robot-relative drive, where pushing the stick forward always drives
+         * the robot towards its own front.
+         * We use dpadUpWasPressed() rather than dpad_up, so that holding the button down only
+         * resets the heading once.
+         */
+        if (gamepad1.dpadUpWasPressed()) {
+            fieldRelative = true;
+            imu.resetYaw();
+        }
+        if (gamepad1.dpadDownWasPressed()) {
+            fieldRelative = false;
+        }
+
+        /*
+         * Read the heading once per loop. Each IMU read takes time, so we avoid reading it more
+         * than we need to.
+         */
+        double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+
         /*
          * Here we call a function called mecanumDrive. The mecanumDrive function takes the input from
          * the joysticks, and applies power to the drive motors to move the robot as requested
@@ -195,7 +260,11 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
          * Note, moving the joystick forward on most gamepads results in a negative signal, so
          * we invert it before passing it to the function.
          */
-        mecanumDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        if (fieldRelative) {
+            fieldRelativeDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x, heading);
+        } else {
+            mecanumDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        }
 
         /*
          * Set the intake power variable to equal the right trigger, minus the left trigger.
@@ -228,6 +297,10 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
         /*
          * Show motor powers on the Driver Station via telemetry.
          */
+        telemetry.addData("Drive Mode", fieldRelative
+                ? "Field relative (DPad down for robot relative)"
+                : "Robot relative (DPad up for field relative)");
+        telemetry.addData("Heading", "%.1f deg", Math.toDegrees(heading));
         telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftFrontPower, rightFrontPower);
         telemetry.addData("Triggers", "left (%.2f, right (%.2f)",gamepad1.left_trigger, gamepad1.right_trigger);
     }
@@ -237,6 +310,20 @@ public class BioBuzzStarterbotTeleopMecanum extends OpMode {
      */
     @Override
     public void stop() {
+    }
+
+    void fieldRelativeDrive(double forward, double strafe, double rotate, double heading) {
+        /*
+         * The joystick tells us which way to go relative to the field, but the wheels can only push
+         * relative to the robot. So we rotate the joystick direction by the opposite of the robot's
+         * heading to turn it into robot-relative forward and strafe amounts. For example, if the
+         * robot has turned 90 degrees to the left and the driver pushes the stick forward, the
+         * robot needs to strafe to its right.
+         */
+        double robotForward = forward * Math.cos(heading) - strafe * Math.sin(heading);
+        double robotStrafe = forward * Math.sin(heading) + strafe * Math.cos(heading);
+
+        mecanumDrive(robotForward, robotStrafe, rotate);
     }
 
     void mecanumDrive(double forward, double strafe, double rotate) {
